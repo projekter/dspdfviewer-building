@@ -70,8 +70,8 @@ The subdirectories provided in this repository mimic the directory structure as 
 
 4. Build [libjpeg-turbo](https://github.com/libjpeg-turbo/libjpeg-turbo)
 
-  **optional, not needed:** `poppler` will not work with `libjpeg` (or this replacement) and none of the following steps use this library anywhere. Therefore, this step can be skipped. However, if the problem described later on is someday fixed, that's how to build it. _In principle_, the following libraries can be configured to use `libjpeg`, therefore this would be the correct position for building.
-  Requires [nasm](http://www.nasm.us/) for the "turbo"!
+    **optional, not needed:** `poppler` will not work with `libjpeg` (or this replacement) and none of the following steps use this library anywhere. Therefore, this step can be skipped. However, if the problem described later on is someday fixed, that's how to build it. _In principle_, the following libraries can be configured to use `libjpeg`, therefore this would be the correct position for building.
+    Requires [nasm](http://www.nasm.us/) for the "turbo"!
     - ```console
       mkdir build && cd build
       cmake -DCMAKE_INSTALL_PREFIX=%cd:\=/%/../../compiled/libjpeg-turbo -A Win32 ..
@@ -124,80 +124,82 @@ The subdirectories provided in this repository mimic the directory structure as 
 
 8. Build [libiconv](https://www.gnu.org/software/libiconv/#downloading)
 
-  This is going to be bad, as the GNU projects still use the old `configure`/`make` mechanism instead of `cmake`.
-  You can download the [Visual Studio project folder and the patch file on GitHub](https://github.com/winlibs/libiconv).
-  Now there are two ways:
-  - You can find the `libiconv.diff` which essentially should do everything that `configure` does.
-    If you want to take this path, first overwrite the `source` folder with the current `libiconv` (leaving old files present).
-    Then apply the patch ([GnuWin](http://gnuwin32.sourceforge.net/packages.html) contains `patch.exe`) in the following way:
-      - Convert all files that are about to be patched to Windows line endings, including the patch file itself (all better editors will have a function for this, a nice free one is [Programmer's Notepad](http://www.pnotepad.org/)). `patch` will report any file which is not in the proper ending, or just fail with an assertion failure.
-        The list of all files can be found right at the beginning of the patch file.
+    This is going to be bad, as the GNU projects still use the old `configure`/`make` mechanism instead of `cmake`.
+    You can download the [Visual Studio project folder and the patch file on GitHub](https://github.com/winlibs/libiconv).
+    Now there are two ways:
+    - You can find the `libiconv.diff` which essentially should do everything that `configure` does.
+      If you want to take this path, first overwrite the `source` folder with the current `libiconv` (leaving old files present).
+      Then apply the patch ([GnuWin](http://gnuwin32.sourceforge.net/packages.html) contains `patch.exe`) in the following way:
+        - Convert all files that are about to be patched to Windows line endings, including the patch file itself (all better editors will have a function for this, a nice free one is [Programmer's Notepad](http://www.pnotepad.org/)). `patch` will report any file which is not in the proper ending, or just fail with an assertion failure.
+          The list of all files can be found right at the beginning of the patch file.
+        - ```console
+          patch -i libiconv.diff
+          ```
+      - Some files used by the patch were based on the old versions - the ones that originally had a `.in` ending and should have been created via `configure`.
+        Do a three-way-comparison with you diff program with the files `config.h`, `iconv.h` and `localcharset.h` (first: `.in` file of the GitHub archive; second: patched version of the GitHub archive; third: `.in` file of the most recent version). They are located in `source/`, `source/include/`, and `source/lib/`, respectively (the patch wrongly creates all of them in the current folder).
+        Check which definitions have to be adapted and merge accordingly. This will take some time, especially for the `config.h`. The files in this repository is what I made out of the steps above for the version of the library indicated by the directory name.
+    - Alternatively, if you have Cygwin, you can run `configure` by yourself.
+      For this path, _replace_ the `source` folder with the current `libiconv` (removing all previous files).
+      - Keep in mind that you are in a cmd with the Visual Studio variables properly set. In this command line, now run Cygwin.
+      - Go to the `source/build-aux` folder.
       - ```console
-        patch -i libiconv.diff
+        chmod a+x ar-lib compile
+        cd ..
+        win32_target=_WIN32_WINNT_WIN10
+        ./configure --host=i686-w64-mingw32 \
+              CC="cl -nologo" \
+              CFLAGS="-MT" \
+              CXX="cl -nologo" \
+              CXXFLAGS="-MT" \
+              CPPFLAGS="-D_WIN32_WINNT=$win32_target" \
+              LD="link" \
+              NM="dumpbin -symbols" \
+              STRIP=":" \
+              AR="<full path to source>/build-aux/ar-lib lib" \
+              RANLIB=":"
         ```
-    - Some files used by the patch were based on the old versions - the ones that originally had a `.in` ending and should have been created via `configure`.
-      Do a three-way-comparison with you diff program with the files `config.h`, `iconv.h` and `localcharset.h` (first: `.in` file of the GitHub archive; second: patched version of the GitHub archive; third: `.in` file of the most recent version). They are located in `source/`, `source/include/`, and `source/lib/`, respectively (the patch wrongly creates all of them in the current folder).
-      Check which definitions have to be adapted and merge accordingly. This will take some time, especially for the `config.h`. The files in this repository is what I made out of the steps above for the version of the library indicated by the directory name.
-  - Alternatively, if you have Cygwin, you can run `configure` by yourself.
-    For this path, _replace_ the `source` folder with the current `libiconv` (removing all previous files).
-    - Keep in mind that you are in a cmd with the Visual Studio variables properly set. In this command line, now run Cygwin.
-    - Go to the `source/build-aux` folder.
-    - ```console
-      chmod a+x ar-lib compile
-      cd ..
-      win32_target=_WIN32_WINNT_WIN10
-      ./configure --host=i686-w64-mingw32 \
-            CC="cl -nologo" \
-            CFLAGS="-MT" \
-            CXX="cl -nologo" \
-            CXXFLAGS="-MT" \
-            CPPFLAGS="-D_WIN32_WINNT=$win32_target" \
-            LD="link" \
-            NM="dumpbin -symbols" \
-            STRIP=":" \
-            AR="<full path to source>/build-aux/ar-lib lib" \
-            RANLIB=":"
-      ```
-      where you have to replace `<full path to source>` accordingly. This will create all necessary files.
-    - Proceed as described below; the include path is not set up properly, so that the `localcharset.h` is not found. It is located in `source/libcharset/include`; adjust the two `#includes` and the project file accordingly.
-  - open `MSVC16/libiconv.sln`
-  - change `libiconv_static` build properties toand `MT` for both `Release` mode
-  - compile `libiconv_static` in `Release` mode
-  - copy `source/include/iconv.h` to `compiled/libiconv/include/`
-  - copy `MSVC16/Win32/lib/libiconv_a.lib` to `compiled/libiconv/lib`
+        where you have to replace `<full path to source>` accordingly. This will create all necessary files.
+      - Proceed as described below; the include path is not set up properly, so that the `localcharset.h` is not found. It is located in `source/libcharset/include`; adjust the two `#includes` and the project file accordingly.
+    - open `MSVC16/libiconv.sln`
+    - change `libiconv_static` build properties toand `MT` for both `Release` mode
+    - compile `libiconv_static` in `Release` mode
+    - copy `source/include/iconv.h` to `compiled/libiconv/include/`
+    - copy `MSVC16/Win32/lib/libiconv_a.lib` to `compiled/libiconv/lib`
 
 9. [Qt](https://www.qt.io/download)
 
-  This step will take most time, as Qt is a huge library. It is best to use a separate cmd and let it continue in the background.
-  Apart from Boost (whose compilation will probably still run in the background), all packages previously compiled are required, so this is the earliest point at which you can compile Qt. (Note that strictly speaking, you need none, but then Qt will duplicate functionality, and this may not only be redundant but in fact lead to problems, see #99.)
-    - Download the online installer, then use it to download the Qt sources into `ThirdParty/Qt`.
-    - The downloader will create a subdirectory `<version>/Src/`. You have to create `<version>/build/` and `<version>/install/` by yourself.
-    - The working directory will be `<version>/build`.
-    - As described on the [Qt for Windows](https://doc.qt.io/qt-5/windows-building.html) page, create an appropriate `qt5vars.cmd` script. Be sure to point to the correct version of Visual Studio (here, 2019 and x86). Also adjust the _ROOT variable appropriately. Then run this script.
-    - Replace `-MD` with `-MT` in `Src/qtbase/mkspecs/common/msvc-destkop.conf`
-    - ```console
-      ..\Src\configure ^
-         -prefix %cd:\=/%/../../../compiled/qt5 ^
-         -static ^
-         -release ^
-         -platform win32-msvc ^
-         -nomake tools ^
-         -nomake examples ^
-         -nomake tests ^
-         -silent ^
-         ZLIB_PREFIX=%cd:\=/%/../../../compiled/zlib ^
-         ICONV_PREFIX=%cd:\=/%/../../../compiled/libiconv ^
-         FREETYPE_PREFIX=%cd:\=/%/../../../compiled/freetype ^
-         LIBJPEG_PREFIX=%cd:\=/%/../../../compiled/libjpeg-turbo ^
-         LIBPNG_PREFIX=%cd:\=/%/../../../compiled/libpng ^
-         TIFF_PREFIX=%cd:\=/%/../../../compiled/tiff
-      nmake
-      nmake install
-      ```
-      The first line configures Qt to build without tools, examples, and tests. You may also want to exclude other irrelevant parts of the library, but I didn't investigate which ones are required for poppler.
-      It also specifies not to use the built-in libraries but the ones we built by ourselves - there's no need for Qt to duplicate parts that we need anyways.
-      
-      Note that the second command will take several hours. You may try to speed it up by giving the additional `configure` option `-mp`, which then makes use of all processors.
+    This step will take most time, as Qt is a huge library. It is best to use a separate cmd and let it continue in the background.
+    Apart from Boost (whose compilation will probably still run in the background), all packages previously compiled are required, so this is the earliest point at which you can compile Qt. (Note that strictly speaking, you need none, but then Qt will duplicate functionality, and this may not only be redundant but in fact lead to problems, see #99.)
+      - Download the online installer, then use it to download the Qt sources into `ThirdParty/Qt`.
+      - The downloader will create a subdirectory `<version>/Src/`. You have to create `<version>/build/` and `<version>/install/` by yourself.
+      - The working directory will be `<version>/build`.
+      - As described on the [Qt for Windows](https://doc.qt.io/qt-5/windows-building.html) page, create an appropriate `qt5vars.cmd` script. Be sure to point to the correct version of Visual Studio (here, 2019 and x86). Also adjust the `_ROOT` variable appropriately. Then run this script.
+      - Replace `-MD` with `-MT` in `Src/qtbase/mkspecs/common/msvc-destkop.conf`
+      - ```console
+        ..\Src\configure ^
+           -prefix %cd:\=/%/../../../compiled/qt5 ^
+           -static ^
+           -release ^
+           -platform win32-msvc ^
+           -nomake tools ^
+           -nomake examples ^
+           -nomake tests ^
+           -silent ^
+           ZLIB_PREFIX=%cd:\=/%/../../../compiled/zlib ^
+           ICONV_PREFIX=%cd:\=/%/../../../compiled/libiconv ^
+           FREETYPE_PREFIX=%cd:\=/%/../../../compiled/freetype ^
+           LIBJPEG_PREFIX=%cd:\=/%/../../../compiled/libjpeg-turbo ^
+           LIBPNG_PREFIX=%cd:\=/%/../../../compiled/libpng ^
+           TIFF_PREFIX=%cd:\=/%/../../../compiled/tiff
+        nmake
+        nmake install
+        ```
+        The first line configures Qt to build without tools, examples, and tests. You may also want to exclude other irrelevant parts of the library, but I didn't investigate which ones are required for poppler.
+        It also specifies not to use the built-in libraries but the ones we built by ourselves - there's no need for Qt to duplicate parts that we need anyways.
+        
+        Note that the second command will take several hours. You may try to speed it up by giving the additional `configure` option `-mp`, which then makes use of all processors.
+        
+        After the installation, in case you compiled `libjpeg-turbo`, go to `compiled/qt5/plugins/imageformats/qjpeg.prl` and replace `jpeg.lib` by `jpeg-static.lib` (but not `qjpeg.lib`!). If you know how to instruct Qt to use the static linking beforehand, please tell me.
 
 10. Build [expat](https://github.com/libexpat/libexpat) (`expat` subdirectory)
     - ```console
